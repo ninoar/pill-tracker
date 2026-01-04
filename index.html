@@ -3,39 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Pill Tracker PRO</title>
+    <title>Pill Tracker Cloud</title>
+    
+    <link rel="icon" type="image/png" href="https://i.postimg.cc/KzPyTZy9/Gemini-Generated-Image-tykawltykawltyka.png">
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/KzPyTZy9/Gemini-Generated-Image-tykawltykawltyka.png">
+
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <style>
         :root { --p: #3182ce; --s: #48bb78; --w: #ed8936; --d: #e53e3e; --bg: #f7fafc; }
-        body { font-family: system-ui, sans-serif; padding: 10px; background: var(--bg); margin: 0; }
+        body { font-family: system-ui, -apple-system, sans-serif; padding: 10px; background: var(--bg); margin: 0; color: #2d3748; }
         .container { max-width: 500px; margin: auto; }
         .card { background: white; padding: 15px; border-radius: 12px; margin-bottom: 15px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-        h2 { text-align: center; color: #2d3748; }
+        h2 { text-align: center; margin-bottom: 20px; }
         .form { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; }
         input { padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
-        .btn-m { width: 100%; padding: 14px; background: var(--p); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-m { width: 100%; padding: 14px; background: var(--p); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 16px; }
         .item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #edf2f7; }
-        .n { font-weight: bold; display: block; }
+        .item:last-child { border-bottom: none; }
+        .n { font-weight: bold; display: block; font-size: 17px; }
         .i { font-size: 13px; color: #718096; }
-        .actions { display: flex; gap: 4px; }
-        .btn-s { border: none; padding: 10px; border-radius: 8px; color: white; font-size: 16px; min-width: 40px; cursor: pointer; }
+        .actions { display: flex; gap: 5px; }
+        .btn-s { border: none; padding: 10px; border-radius: 8px; color: white; font-size: 18px; min-width: 44px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .pulsing { background: var(--w) !important; animation: pulse 1.5s infinite; }
         @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
     <div class="container">
-        <h2>💊 Pill Tracker PRO</h2>
+        <h2>💊 Pill Tracker Cloud</h2>
         <div class="card">
             <div class="form">
-                <input type="text" id="nome" placeholder="Nome">
-                <input type="number" id="qta" placeholder="Pillole">
-                <input type="number" step="0.1" id="dose" placeholder="Dose/G">
-                <input type="number" id="alt" placeholder="Avviso" value="7">
+                <input type="text" id="nome" placeholder="Nome Farmaco">
+                <input type="number" id="qta" placeholder="Pillole Totali">
+                <input type="number" step="0.1" id="dose" placeholder="Dose/Giorno">
+                <input type="number" id="alt" placeholder="Avviso (gg prima)" value="7">
             </div>
-            <button class="btn-m" onclick="aggiungi()">SALVA NEL CLOUD</button>
+            <button class="btn-m" onclick="aggiungi()">SALVA NEL DATABASE</button>
         </div>
-        <div class="card" id="elenco">Caricamento...</div>
+        <div class="card" id="elenco">Caricamento farmaci...</div>
     </div>
 
 <script>
@@ -54,23 +59,48 @@
         const { data, error } = await client.from('farmaci').select('*').order('nome');
         if (error) return;
         const elenco = document.getElementById('elenco');
-        elenco.innerHTML = data.length ? '' : '<p style="text-align:center">Nessun farmaco presente.</p>';
+        elenco.innerHTML = data.length ? '' : '<p style="text-align:center">Nessun farmaco in lista.</p>';
+        
         data.forEach(f => {
             const residui = Math.floor(f.quantita / f.dose_giornaliera);
-            const scadenza = new Date(); scadenza.setDate(scadenza.getDate() + (isNaN(residui) ? 0 : residui));
-            const testoScadenza = isNaN(residui) || !isFinite(residui) ? "Dati errati" : `${residui} gg (Fino al ${scadenza.toLocaleDateString()})`;
+            const scadenza = new Date(); 
+            scadenza.setDate(scadenza.getDate() + (isNaN(residui) ? 0 : residui));
+            
+            const errato = isNaN(residui) || !isFinite(residui);
+            const testoScadenza = errato ? "Dati incompleti" : `${residui} gg (Fine: ${scadenza.toLocaleDateString()})`;
             
             elenco.innerHTML += `
                 <div class="item">
                     <div><span class="n">${f.nome || 'Senza Nome'}</span><span class="i">${testoScadenza}</span></div>
                     <div class="actions">
-                        <button class="btn-s" style="background:#48bb78" onclick="scala(${f.id},${f.quantita-f.dose_giornaliera})">💊</button>
-                        <button class="btn-s" style="background:#38b2ac" onclick="piu(${f.id},${f.quantita},'${f.nome}')">➕</button>
-                        <button class="btn-s ${modificati.has(f.nome)?'pulsing':''}" style="background:#718096" onclick="cal('${f.nome}','${scadenza}',${f.anticipo_giorni})">📅</button>
-                        <button class="btn-s" style="background:var(--d)" onclick="elimina(${f.id})">🗑️</button>
+                        <button class="btn-s" style="background:#48bb78" onclick="scala(${f.id},${f.quantita-f.dose_giornaliera})" title="Scala dose">💊</button>
+                        <button class="btn-s" style="background:#38b2ac" onclick="piu(${f.id},${f.quantita},'${f.nome}')" title="Aggiungi scorta">➕</button>
+                        <button class="btn-s ${modificati.has(f.nome)?'pulsing':''}" style="background:#718096" onclick="preparaCalendario('${f.nome}','${scadenza}',${f.anticipo_giorni})" title="Calendario">📅</button>
+                        <button class="btn-s" style="background:var(--d)" onclick="elimina(${f.id})" title="Elimina">🗑️</button>
                     </div>
                 </div>`;
         });
+    }
+
+    async function preparaCalendario(nome, dataFine, anticipo) {
+        try {
+            await navigator.clipboard.writeText(nome);
+            alert(`✅ Nome "${nome}" copiato!\n\n1. Cerca col tasto (🔍) nel calendario.\n2. Incolla il nome ed ELIMINA il vecchio ordine.\n3. Salva questo nuovo.`);
+        } catch (err) {
+            alert(`⚠️ Ricorda di eliminare il vecchio promemoria per ${nome}!`);
+        }
+        
+        const dF = new Date(dataFine); 
+        const dP = new Date(dF); 
+        dP.setDate(dF.getDate() - (anticipo || 7));
+        if (dP <= new Date()) dP.setDate(new Date().getDate() + 1);
+        
+        const iso = dP.toISOString().split('T')[0].replace(/-/g, "") + "T080000";
+        const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent('🚨 ORDINE: '+nome)}&dates=${iso}/${iso}&details=${encodeURIComponent('Fine scorta: '+dF.toLocaleDateString())}`;
+        
+        modificati.delete(nome); 
+        aggiorna(); 
+        window.open(url, '_blank');
     }
 
     async function aggiungi() {
@@ -78,14 +108,16 @@
         const q = parseFloat(document.getElementById('qta').value);
         const d = parseFloat(document.getElementById('dose').value);
         const a = parseInt(document.getElementById('alt').value);
-        if(!n || isNaN(q) || isNaN(d)) { alert("Inserisci dati validi!"); return; }
+        if(!n || isNaN(q)) return alert("Inserisci nome e pillole!");
         await client.from('farmaci').insert([{ nome: n, quantita: q, dose_giornaliera: d, anticipo_giorni: a }]);
+        document.getElementById('nome').value = '';
+        document.getElementById('qta').value = '';
         modificati.add(n);
         aggiorna();
     }
 
     async function elimina(id) {
-        if(confirm("Vuoi eliminare definitivamente questo farmaco?")) {
+        if(confirm("Vuoi eliminare questo farmaco?")) {
             await client.from('farmaci').delete().eq('id', id);
             aggiorna();
         }
@@ -94,32 +126,12 @@
     async function scala(id, n) { await client.from('farmaci').update({ quantita: n }).eq('id', id); aggiorna(); }
     
     async function piu(id, c, n) {
-        const a = prompt("Pillole aggiunte?");
+        const a = prompt("Quante pillole aggiungi?");
         if(a) { 
             await client.from('farmaci').update({ quantita: c + parseFloat(a) }).eq('id', id); 
             modificati.add(n); 
             aggiorna(); 
         }
-    }
-
-    function cal(n, d, a) {
-        // Avviso esplicito prima di aprire il calendario
-        alert("⚠️ RICORDA: Una volta aperto il calendario, cerca e CANCELLA il vecchio promemoria di " + n + " per non avere doppioni!");
-        
-        const dF = new Date(d); 
-        const dP = new Date(dF); 
-        dP.setDate(dF.getDate() - a);
-        if (dP <= new Date()) dP.setDate(new Date().getDate() + 1);
-        
-        const iso = dP.toISOString().split('T')[0].replace(/-/g, "") + "T080000";
-        
-        // Titolo modificato per includere l'avviso di cancellazione
-        const titolo = `🚨 ORDINE: ${n} (CANCELLA VECCHIO!)`;
-        const url = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(titolo)}&dates=${iso}/${iso}&details=${encodeURIComponent('Fine scorta prevista: '+dF.toLocaleDateString())}`;
-        
-        modificati.delete(n); 
-        aggiorna(); 
-        window.open(url, '_blank');
     }
 
     window.onload = avvia;
